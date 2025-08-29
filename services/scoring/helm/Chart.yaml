@@ -1,0 +1,12 @@
+# ============================================================
+# Author: TGibson
+# File: services/scoring/helm/Chart.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+apiVersion: v2
+name: scoring
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

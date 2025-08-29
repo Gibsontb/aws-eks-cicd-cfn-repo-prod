@@ -1,0 +1,33 @@
+# ============================================================
+# Author: TGibson
+# File: templates/route53-records.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 alias A record to ALB + optional www CNAME (Created 2025-08-28)
+Parameters:
+  HostedZoneId:
+    Type: String
+  RecordName:
+    Type: String
+    Description: e.g., app.example.com
+  AlbDnsName:
+    Type: String
+  AlbHostedZoneId:
+    Type: String
+Resources:
+  AliasA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref RecordName
+      Type: A
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
+        EvaluateTargetHealth: true
+Outputs:
+  RecordName:
+    Value: !Ref RecordName

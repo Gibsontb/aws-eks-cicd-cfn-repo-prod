@@ -1,0 +1,65 @@
+# ============================================================
+# Author: TGibson
+# File: ops/helm/values.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+image:
+  repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/myservice
+  tag: "dev"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: alb
+  annotations: {}
+  hosts: []
+  tls: []
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  runAsUser: 1000
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities: { drop: ["ALL"] }
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

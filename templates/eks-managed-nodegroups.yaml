@@ -1,0 +1,86 @@
+# ============================================================
+# Author: TGibson
+# File: templates/eks-managed-nodegroups.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EKS Managed Node Groups for general/compute/memory (no OSS autoscalers)
+Parameters:
+  ClusterName:
+    Type: String
+  NodeRoleArn:
+    Type: String
+  SubnetIds:
+    Type: List<String>
+  AmiType:
+    Type: String
+    Default: AL2_x86_64
+    AllowedValues: [AL2_x86_64, BOTTLEROCKET_x86_64, AL2023_x86_64_STANDARD]
+  MinSize:
+    Type: Number
+    Default: 1
+  MaxSize:
+    Type: Number
+    Default: 10
+  DesiredSizeGeneral:
+    Type: Number
+    Default: 2
+  DesiredSizeCompute:
+    Type: Number
+    Default: 0
+  DesiredSizeMemory:
+    Type: Number
+    Default: 0
+Resources:
+  NgGeneral:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref ClusterName
+      NodeRole: !Ref NodeRoleArn
+      Subnets: !Ref SubnetIds
+      AmiType: !Ref AmiType
+      ScalingConfig:
+        MinSize: !Ref MinSize
+        MaxSize: !Ref MaxSize
+        DesiredSize: !Ref DesiredSizeGeneral
+      NodegroupName: ng-general
+      Labels: { workload: "general" }
+  NgCompute:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref ClusterName
+      NodeRole: !Ref NodeRoleArn
+      Subnets: !Ref SubnetIds
+      AmiType: !Ref AmiType
+      ScalingConfig:
+        MinSize: !Ref MinSize
+        MaxSize: !Ref MaxSize
+        DesiredSize: !Ref DesiredSizeCompute
+      NodegroupName: ng-compute
+      Labels: { workload: "compute" }
+      Taints:
+        - Key: "dedicated"
+          Value: "compute"
+          Effect: "NO_SCHEDULE"
+  NgMemory:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref ClusterName
+      NodeRole: !Ref NodeRoleArn
+      Subnets: !Ref SubnetIds
+      AmiType: !Ref AmiType
+      ScalingConfig:
+        MinSize: !Ref MinSize
+        MaxSize: !Ref MaxSize
+        DesiredSize: !Ref DesiredSizeMemory
+      NodegroupName: ng-memory
+      Labels: { workload: "memory" }
+      Taints:
+        - Key: "dedicated"
+          Value: "memory"
+          Effect: "NO_SCHEDULE"
+Outputs:
+  NodeGroups:
+    Value: !Join [",", [!Ref NgGeneral, !Ref NgCompute, !Ref NgMemory]]

@@ -1,0 +1,13 @@
+# ============================================================
+# Author: TGibson
+# File: ops/addons/aws-load-balancer-controller/values.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+clusterName: ${CLUSTER_NAME}
+region: ${AWS_REGION}
+vpcId: ${VPC_ID}
+serviceAccount:
+  create: false
+  name: aws-load-balancer-controller

@@ -1,0 +1,58 @@
+# ============================================================
+# Author: TGibson
+# File: templates/evidence-bucket.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: S3 bucket for evidence with TLS-only and SSE
+Parameters:
+  BucketName:
+    Type: String
+  KmsKeyId:
+    Type: String
+    Default: ''
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !If [HasKms, !Ref KmsKeyId, !Ref "AWS::NoValue"]
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerPreferred}]
+      Tags:
+        - Key: Project
+          Value: zt-saas
+      VersioningConfiguration:
+        Status: Enabled
+  TLSOnly:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+          - Sid: TLSRequestsOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${Bucket.Arn}/*"
+              - !GetAtt Bucket.Arn
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+Conditions:
+  HasKms: !Not [!Equals [!Ref KmsKeyId, ""]]
+Outputs:
+  BucketNameOut:
+    Value: !Ref Bucket

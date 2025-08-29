@@ -1,0 +1,8 @@
+# ============================================================
+# Author: TGibson
+# File: params/tools-commercial.json
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+[{"ParameterKey":"AppName","ParameterValue":"myservice"},{"ParameterKey":"IsCommercial","ParameterValue":"true"},{"ParameterKey":"VpcId","ParameterValue":"vpc-xxxxxxxx"},{"ParameterKey":"PrivateSubnetIds","ParameterValue":"subnet-aaaa,subnet-bbbb"},{"ParameterKey":"CodeBuildSecurityGroupId","ParameterValue":"sg-xxxxxx"}]

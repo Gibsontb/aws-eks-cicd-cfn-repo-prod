@@ -1,0 +1,29 @@
+# ============================================================
+# Author: TGibson
+# File: ops/addons/velero/values.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+configuration:
+  provider: aws
+  backupStorageLocation:
+    name: default
+    bucket: ${VELERO_BUCKET}
+    prefix: ${ENV_NAME}
+    config:
+      region: ${AWS_REGION}
+      s3ForcePathStyle: true
+      s3Url: https://s3.${AWS_REGION}.amazonaws.com
+credentials:
+  useSecret: false
+serviceAccount:
+  server:
+    create: false
+    name: velero
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.9.0
+    volumeMounts:
+      - mountPath: /target
+        name: plugins

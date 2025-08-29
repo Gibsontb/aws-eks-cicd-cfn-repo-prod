@@ -1,0 +1,82 @@
+# ============================================================
+# Author: TGibson
+# File: templates/pipeline-ecs-prod.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CodePipeline for ECS: Build -> Staging Deploy -> Manual -> Prod Deploy
+Parameters:
+  RepoName:
+    Type: String
+  Branch:
+    Type: String
+    Default: main
+  ArtifactBucket:
+    Type: String
+  BuildProjectName:
+    Type: String
+    Default: zt-ecs-build
+  DeployProjectName:
+    Type: String
+    Default: zt-ecs-deploy
+Resources:
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId: { Category: Source, Owner: AWS, Provider: CodeCommit, Version: "1" }
+              Configuration: { RepositoryName: !Ref RepoName, BranchName: !Ref Branch }
+              OutputArtifacts: [{Name: SourceOut}]
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: "1" }
+              Configuration: { ProjectName: !Ref BuildProjectName }
+              InputArtifacts: [{Name: SourceOut}]
+              OutputArtifacts: [{Name: BuildOut}]
+        - Name: StagingDeploy
+          Actions:
+            - Name: DeployStaging
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: "1" }
+              Configuration:
+                ProjectName: !Ref DeployProjectName
+                EnvironmentVariables: '[{"name":"ENV","value":"stg"}]'
+              InputArtifacts: [{Name: BuildOut}]
+        - Name: ManualApproval
+          Actions:
+            - Name: ApproveProd
+              ActionTypeId: { Category: Approval, Owner: AWS, Provider: Manual, Version: "1" }
+        - Name: ProdDeploy
+          Actions:
+            - Name: DeployProd
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: "1" }
+              Configuration:
+                ProjectName: !Ref DeployProjectName
+                EnvironmentVariables: '[{"name":"ENV","value":"prod"}]'
+              InputArtifacts: [{Name: BuildOut}]
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codepipeline.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: pipeline-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'

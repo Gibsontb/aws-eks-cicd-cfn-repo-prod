@@ -1,0 +1,103 @@
+# ============================================================
+# Author: TGibson
+# File: templates/sam-scoring-workflow.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM app with Lambdas wired into Step Functions for ZT scoring
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 60
+    MemorySize: 256
+    Tracing: Active
+Parameters:
+  AppName:
+    Type: String
+    Default: zt
+Resources:
+  GatherEvidenceFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: services/workflow/gather/
+      Handler: app.lambda_handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub "${AppName}-*"
+  RunChecksFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: services/workflow/checks/
+      Handler: app.lambda_handler
+  ComputeScoreFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: services/workflow/compute/
+      Handler: app.lambda_handler
+  PersistResultsFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: services/workflow/persist/
+      Handler: app.lambda_handler
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy: {}
+        - AWSXRayDaemonWriteAccess
+  NotifyFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: services/workflow/notify/
+      Handler: app.lambda_handler
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !Sub "${AppName}-alerts"
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: states.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionsInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: "*"
+  ScoringStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "${AppName}-scoring"
+      Definition:
+        StartAt: GatherEvidence
+        States:
+          GatherEvidence:
+            Type: Task
+            Resource: !GetAtt GatherEvidenceFn.Arn
+            Next: RunChecks
+          RunChecks:
+            Type: Task
+            Resource: !GetAtt RunChecksFn.Arn
+            Next: ComputeScore
+          ComputeScore:
+            Type: Task
+            Resource: !GetAtt ComputeScoreFn.Arn
+            Next: PersistResults
+          PersistResults:
+            Type: Task
+            Resource: !GetAtt PersistResultsFn.Arn
+            Next: Notify
+          Notify:
+            Type: Task
+            Resource: !GetAtt NotifyFn.Arn
+            End: true
+      Role: !GetAtt StateMachineRole.Arn
+Outputs:
+  StateMachineArn:
+    Value: !Ref ScoringStateMachine

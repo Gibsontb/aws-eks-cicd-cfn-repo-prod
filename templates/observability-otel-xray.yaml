@@ -1,0 +1,79 @@
+# ============================================================
+# Author: TGibson
+# File: templates/observability-otel-xray.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IRSA role & policies for OTel collector (AMP remote write, CloudWatch, X-Ray)
+
+Parameters:
+  ClusterName: { Type: String }
+  OidcProviderArn: { Type: String }
+  Namespace: { Type: String, Default: "observability" }
+  ServiceAccountName: { Type: String, Default: "otel-collector" }
+  EnableXRay: { Type: String, AllowedValues: ["true","false"], Default: "true" }
+  KmsKeyArnForXRay: { Type: String, Default: "" }
+
+Conditions:
+  UseXRay: !Equals [!Ref EnableXRay, "true"]
+  UseKms: !Not [!Equals [!Ref KmsKeyArnForXRay, ""]]
+
+Resources:
+  OTelRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-${Namespace}-${ServiceAccountName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                # ServiceAccount subject
+                # Adjust 'issuer' path if needed
+                oidc.eks.${AWS::Region}.amazonaws.com/id/*:sub: !Sub "system:serviceaccount:${Namespace}:${ServiceAccountName}"
+      Policies:
+        - PolicyName: oTelWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - aps:RemoteWrite
+                  - aps:GetSeries
+                  - aps:GetLabels
+                  - aps:GetMetricMetadata
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                Resource: "*"
+              - !If
+                - UseXRay
+                - Effect: Allow
+                  Action:
+                    - xray:PutTraceSegments
+                    - xray:PutTelemetryRecords
+                  Resource: "*"
+                - !Ref "AWS::NoValue"
+              - !If
+                - UseKms
+                - Effect: Allow
+                  Action:
+                    - kms:Decrypt
+                    - kms:GenerateDataKey
+                  Resource: !Ref KmsKeyArnForXRay
+                - !Ref "AWS::NoValue"
+
+Outputs:
+  ServiceAccountAnnotation:
+    Value: !Sub "eks.amazonaws.com/role-arn: ${OTelRole.Arn}"
+  RoleArn:
+    Value: !GetAtt OTelRole.Arn

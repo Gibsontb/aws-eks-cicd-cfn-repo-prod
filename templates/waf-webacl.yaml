@@ -1,0 +1,96 @@
+# ============================================================
+# Author: TGibson
+# File: templates/waf-webacl.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: WAFv2 WebACL + ALB association (+ optional logging)
+
+Parameters:
+  WebAclName: { Type: String }
+  AlbArn: { Type: String }
+  EnableCommonRuleSet: { Type: String, AllowedValues: ["true","false"], Default: "true" }
+  EnableKnownBadInputs: { Type: String, AllowedValues: ["true","false"], Default: "true" }
+  OptionalIpSetArn: { Type: String, Default: "" }
+  EnableLogging: { Type: String, AllowedValues: ["true","false"], Default: "false" }
+  LogDestinationArn: { Type: String, Default: "" }
+
+Conditions:
+  UseCommon: !Equals [!Ref EnableCommonRuleSet, "true"]
+  UseKBI:    !Equals [!Ref EnableKnownBadInputs, "true"]
+  UseIP:     !Not [!Equals [!Ref OptionalIpSetArn, ""]]
+  UseLog:    !Equals [!Ref EnableLogging, "true"]
+
+Resources:
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Ref WebAclName
+      Scope: REGIONAL
+      DefaultAction: { Allow: {} }
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub "${WebAclName}-metrics"
+        SampledRequestsEnabled: true
+      Rules:
+        - !If
+          - UseCommon
+          - Name: AWSManagedRulesCommonRuleSet
+            Priority: 1
+            OverrideAction: { None: {} }
+            Statement:
+              ManagedRuleGroupStatement:
+                Name: AWSManagedRulesCommonRuleSet
+                VendorName: AWS
+            VisibilityConfig:
+              CloudWatchMetricsEnabled: true
+              MetricName: common
+              SampledRequestsEnabled: true
+          - !Ref "AWS::NoValue"
+        - !If
+          - UseKBI
+          - Name: AWSManagedRulesKnownBadInputsRuleSet
+            Priority: 2
+            OverrideAction: { None: {} }
+            Statement:
+              ManagedRuleGroupStatement:
+                Name: AWSManagedRulesKnownBadInputsRuleSet
+                VendorName: AWS
+            VisibilityConfig:
+              CloudWatchMetricsEnabled: true
+              MetricName: kbi
+              SampledRequestsEnabled: true
+          - !Ref "AWS::NoValue"
+        - !If
+          - UseIP
+          - Name: AllowOnlyIPSet
+            Priority: 3
+            Action: { Allow: {} }
+            Statement:
+              IPSetReferenceStatement:
+                Arn: !Ref OptionalIpSetArn
+            VisibilityConfig:
+              CloudWatchMetricsEnabled: true
+              MetricName: ipset
+              SampledRequestsEnabled: true
+          - !Ref "AWS::NoValue"
+
+  Assoc:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Ref AlbArn
+      WebACLArn: !GetAtt WebACL.Arn
+
+  Logging:
+    Condition: UseLog
+    Type: AWS::WAFv2::LoggingConfiguration
+    Properties:
+      ResourceArn: !GetAtt WebACL.Arn
+      LogDestinationConfigs:
+        - !Ref LogDestinationArn
+
+Outputs:
+  WebAclArn:
+    Value: !GetAtt WebACL.Arn

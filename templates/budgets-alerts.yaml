@@ -1,0 +1,43 @@
+# ============================================================
+# Author: TGibson
+# File: templates/budgets-alerts.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Budgets monthly cost alert (Created 2025-08-28)
+Parameters:
+  BudgetLimitUSD:
+    Type: Number
+    Default: 1000
+  EmailAddress:
+    Type: String
+Resources:
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: Prod-Monthly-Cost
+        BudgetLimit:
+          Amount: !Ref BudgetLimitUSD
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref EmailAddress
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref EmailAddress

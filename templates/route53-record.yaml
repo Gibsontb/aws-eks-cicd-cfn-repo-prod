@@ -1,0 +1,26 @@
+# ============================================================
+# Author: TGibson
+# File: templates/route53-record.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 Alias record pointing to CloudFront distribution
+Parameters:
+  HostedZoneId:
+    Type: String
+  DomainName:
+    Type: String
+  DistributionDomainName:
+    Type: String
+Resources:
+  Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !Ref DistributionDomainName

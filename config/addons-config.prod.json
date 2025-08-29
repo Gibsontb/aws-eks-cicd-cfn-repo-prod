@@ -1,0 +1,36 @@
+# ============================================================
+# Author: TGibson
+# File: config/addons-config.prod.json
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+{
+  "env": "prod",
+  "region": "us-east-1",
+  "cluster_name": "eks-prod",
+  "primary_domain": "example.com",
+  "velero_bucket": "my-prod-velero-backups",
+  "addons": {
+    "aws-load-balancer-controller": {
+      "version": "1.8.1",
+      "enabled": true
+    },
+    "external-dns": {
+      "version": "1.15.0",
+      "enabled": true
+    },
+    "cluster-autoscaler": {
+      "version": "9.37.0",
+      "enabled": true
+    },
+    "external-secrets": {
+      "version": "0.9.13",
+      "enabled": true
+    },
+    "velero": {
+      "version": "5.0.2",
+      "enabled": true
+    }
+  }
+}

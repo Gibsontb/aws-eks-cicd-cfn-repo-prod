@@ -1,0 +1,62 @@
+# ============================================================
+# Author: TGibson
+# File: templates/pipeline-notifications.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SNS topic + EventBridge rules for CodePipeline notifications
+
+Parameters:
+  PipelineName: { Type: String }
+  Email:        { Type: String, Default: "" }
+
+Conditions:
+  HasEmail: !Not [ !Equals [ !Ref Email, "" ] ]
+
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${PipelineName}-notifications'
+
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [ !Ref Topic ]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEventBridge
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: 'sns:Publish'
+            Resource: !Ref Topic
+
+  Sub:
+    Type: AWS::SNS::Subscription
+    Condition: HasEmail
+    Properties:
+      Protocol: email
+      Endpoint: !Ref Email
+      TopicArn: !Ref Topic
+
+  Rule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source: [ "aws.codepipeline" ]
+        detail-type:
+          - "CodePipeline Pipeline Execution State Change"
+          - "CodePipeline Stage Execution State Change"
+          - "CodePipeline Action Execution State Change"
+        detail:
+          pipeline: [ !Ref PipelineName ]
+      Targets:
+        - Arn: !Ref Topic
+          Id: topic
+
+Outputs:
+  SnsTopicArn: { Value: !Ref Topic }

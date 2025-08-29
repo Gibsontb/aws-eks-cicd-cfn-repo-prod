@@ -1,0 +1,18 @@
+# ============================================================
+# Author: TGibson
+# File: ops/helm/templates/pdb.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+{{- if .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "myservice.fullname" . }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels: {{- include "myservice.selectorLabels" . | nindent 6 }}
+{{- end }}

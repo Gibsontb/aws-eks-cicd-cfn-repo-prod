@@ -1,0 +1,51 @@
+# ============================================================
+# Author: TGibson
+# File: templates/cloudfront-alb.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFront distribution in front of an ALB with optional WAF
+Parameters:
+  AlbDnsName:
+    Type: String
+    Description: 'app-alb-xxxxxxxx.region.elb.amazonaws.com'
+  AcmCertArnUsEast1:
+    Type: String
+    Description: 'ACM cert ARN in us-east-1 for CloudFront'
+  WebAclArn:
+    Type: String
+    Default: ''
+Resources:
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Aliases: []
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        WebACLId: !If [HasWebAcl, !Ref WebAclArn, !Ref "AWS::NoValue"]
+        DefaultCacheBehavior:
+          TargetOriginId: app-alb
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+        Origins:
+          - Id: app-alb
+            DomainName: !Ref AlbDnsName
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertArnUsEast1
+          SslSupportMethod: sni-only
+Conditions:
+  HasWebAcl: !Not [!Equals [!Ref WebAclArn, ""]]
+Outputs:
+  DistributionId:
+    Value: !Ref Distribution
+  DistributionDomainName:
+    Value: !GetAtt Distribution.DomainName

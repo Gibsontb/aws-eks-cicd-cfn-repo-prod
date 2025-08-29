@@ -1,0 +1,35 @@
+# ============================================================
+# Author: TGibson
+# File: ops/policies/kyverno-verifyimages.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.2
+# Date: 2025-08-27
+# ============================================================
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-signed-images
+spec:
+  validationFailureAction: Enforce
+  webhookTimeoutSeconds: 15
+  rules:
+    - name: require-cosign-signature
+      match:
+        any:
+        - resources:
+            kinds: ["Pod"]
+      verifyImages:
+        - imageReferences:
+            - "*.dkr.ecr.*.amazonaws.com/myservice*"
+          key: |
+            -----BEGIN PUBLIC KEY-----
+            REPLACE_WITH_COSIGN_PUBLIC_KEY
+            -----END PUBLIC KEY-----
+          attestations:
+            - predicateType: spdxjson
+              conditions:
+                any:
+                  - key: "{{ images.containers[].image }}"
+                    operator: AnyIn
+                    value: "{{ request.object.spec.containers[].image }}"

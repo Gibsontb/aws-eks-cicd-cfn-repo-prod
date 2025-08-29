@@ -1,0 +1,17 @@
+# ============================================================
+# Author: TGibson
+# File: ops/pipeline/buildspec-ecs-deploy.yml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+version: 0.2
+phases:
+  build:
+    commands:
+      - IMAGE_URI=$(cat image_uri.txt)
+      - echo "Deploying to ECS with image $IMAGE_URI"
+      - aws cloudformation deploy --template-file ecs/templates/ecs-fargate-core.yaml --stack-name zt-ecs-$ENV --capabilities CAPABILITY_IAM --parameter-overrides ImageUri=$IMAGE_URI VpcId=$VPC_ID SubnetIds=$SUBNET_IDS
+artifacts:
+  files:
+    - '**/*'

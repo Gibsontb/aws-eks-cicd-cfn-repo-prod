@@ -1,0 +1,159 @@
+# ============================================================
+# Author: TGibson
+# File: templates/eks-irsa-roles.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IRSA roles for core controllers (ALB, ExternalDNS, ClusterAutoscaler, Velero, ExternalSecrets) (Created 2025-08-28)
+Parameters:
+  OidcProviderArn:
+    Type: String
+  ClusterName:
+    Type: String
+  Namespace:
+    Type: String
+    Default: kube-system
+Resources:
+  AlbControllerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub alb-controller-{ClusterName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                oidc.eks.${AWS::Region}.amazonaws.com/id/*:sub: !Sub system:serviceaccount:{Namespace}:aws-load-balancer-controller
+      Policies:
+        - PolicyName: alb-controller-inline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:*
+                  - ec2:Describe*
+                  - ec2:CreateSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupIngress
+                  - iam:CreateServiceLinkedRole
+                  - wafv2:AssociateWebACL
+                  - wafv2:DisassociateWebACL
+                  - wafv2:GetWebACLForResource
+                  - wafv2:GetWebACL
+                Resource: "*"
+  ExternalDnsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub external-dns-{ClusterName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                oidc.eks.${AWS::Region}.amazonaws.com/id/*:sub: !Sub system:serviceaccount:{Namespace}:external-dns
+      Policies:
+        - PolicyName: external-dns-inline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - route53:ListHostedZones
+                  - route53:ListResourceRecordSets
+                Resource: "*"
+  ClusterAutoscalerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub cluster-autoscaler-{ClusterName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                oidc.eks.${AWS::Region}.amazonaws.com/id/*:sub: !Sub system:serviceaccount:{Namespace}:cluster-autoscaler
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterAutoscalerPolicy
+  VeleroRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub velero-{ClusterName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+                StringEquals:
+                  oidc.eks.${AWS::Region}.amazonaws.com/id/*:sub: !Sub system:serviceaccount:{Namespace}:velero
+      Policies:
+        - PolicyName: velero-s3-inline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                  - kms:DescribeKey
+                Resource: "*"
+  ExternalSecretsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub external-secrets-{ClusterName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+                StringEquals:
+                  oidc.eks.${AWS::Region}.amazonaws.com/id/*:sub: !Sub system:serviceaccount:{Namespace}:external-secrets
+      Policies:
+        - PolicyName: external-secrets-inline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:ListSecrets
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - kms:Decrypt
+                Resource: "*"
+Outputs:
+  AlbControllerRoleArn:
+    Value: !GetAtt AlbControllerRole.Arn
+  ExternalDnsRoleArn:
+    Value: !GetAtt ExternalDnsRole.Arn
+  ClusterAutoscalerRoleArn:
+    Value: !GetAtt ClusterAutoscalerRole.Arn
+  VeleroRoleArn:
+    Value: !GetAtt VeleroRole.Arn
+  ExternalSecretsRoleArn:
+    Value: !GetAtt ExternalSecretsRole.Arn

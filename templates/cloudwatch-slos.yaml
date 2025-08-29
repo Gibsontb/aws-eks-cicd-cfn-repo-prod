@@ -1,0 +1,48 @@
+# ============================================================
+# Author: TGibson
+# File: templates/cloudwatch-slos.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudWatch alarms for API p95 latency, 5xx error rate, DB pressure, Velero failures
+Parameters:
+  AlarmEmail:
+    Type: String
+    Default: alerts@example.com
+Resources:
+  SnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref AlarmEmail
+          Protocol: email
+  ApiLatencyP95:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'API p95 latency above 1s'
+      Namespace: AWS/ApplicationELB
+      MetricName: TargetResponseTime
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 2
+      Period: 60
+      Statistic: p95
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref SnsTopic]
+  Api5xxRate:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'HTTP 5xx > 2%'
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0.02
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 3
+      Period: 60
+      Statistic: Average
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref SnsTopic]

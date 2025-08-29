@@ -1,0 +1,37 @@
+# ============================================================
+# Author: TGibson
+# File: ops/policies/kyverno-podsecurity.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: baseline-podsecurity
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-seccomp
+      match: { any: [ { resources: { kinds: [ "Pod" ] } } ] }
+      validate:
+        message: "Pods must set seccompProfile to RuntimeDefault"
+        pattern:
+          spec:
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
+    - name: drop-capabilities
+      match: { any: [ { resources: { kinds: [ "Pod" ] } } ] }
+      validate:
+        message: "Containers must drop ALL caps, run as non-root, and use read-only FS"
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+                  capabilities:
+                    drop: ["ALL"]
+                  readOnlyRootFilesystem: true

@@ -1,0 +1,71 @@
+# ============================================================
+# Author: TGibson
+# File: merge_log.txt
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.6
+# Date: 2025-08-27
+# ============================================================
+prod-patch created
+
+Added:
+- templates/backup-vault-plan.yaml
+- templates/waf-alb-association.yaml
+- templates/acm-cert.yaml
+- templates/ecr-replication.yaml
+- templates/budgets-alerts.yaml
+- templates/route53-records.yaml
+- templates/velero-backup-bucket.yaml
+- templates/eks-irsa-roles.yaml
+- ops/addons/* values.yaml for: ALB Controller, ExternalDNS, Cluster Autoscaler, Velero, External Secrets
+- deploy/deploy-addons-prod.sh
+- config/addons-config.prod.json
+- config/tenants/prod-tenant-template.json
+- ops/tenant/tenant-onboard.sh
+
+Notes:
+- IRSA template includes baseline inline policies; refine per least-privilege for your account/resources.
+- Velero bucket/KMS template provided; deploy and set VELERO_BUCKET env before running deploy-addons-prod.sh.
+- Use ACM + Route53 templates to issue/validate certs for prod domains, then ALB Ingress annotations can reference the cert ARN.
+- WAF association template expects existing WebACL + ALB ARNs.
+- Budgets alerts require a notification email parameter.
+[2025-08-28T14:47:08.672471] Zero-Trust SaaS scaffolding added:
+- templates/: cognito-userpool.yaml, aurora-postgres-slsv2.yaml, cloudfront-alb.yaml, waf-managed-rules.yaml, route53-acm.yaml,
+  karpenter-controller-iam.yaml, karpenter-node-iam.yaml, evidence-bucket.yaml, eventbridge-bus-rules.yaml,
+  stepfunctions-scoring.yaml, cloudwatch-slos.yaml, aws-backup-plan.yaml, ecr-replication.yaml, budgets.yaml, ses-domain-identity.yaml
+- ops/migrations/aurora/: 0001_init_tenancy.sql, 0002_seed_controls.sql
+- ops/app/env/example.env
+- ops/k8s/externalsecrets-app.yaml
+- ops/policies/app-iam.yaml
+- deploy/deploy-karpenter.sh
+- services/scoring/: FastAPI app + Helm chart
+- dashboards/cw-saas-zt-overview.json
+- docs/: tenant-model.md, scoring-model.md, runbook.md
+
+NOTE: cluster-autoscaler is still present; replace with Karpenter using deploy/deploy-karpenter.sh and disable autoscaler add-on.
+
+[2025-08-28T14:49:48.662373] Cleanup + Enhancements:
+- Removed cluster-autoscaler add-on (replaced by Karpenter).
+- Added templates/route53-record.yaml (alias record for CloudFront).
+- Updated templates/stepfunctions-scoring.yaml with Lambda task stubs.
+[2025-08-28T14:51:42.340403] Follow-up changes:
+- Removed Cluster Autoscaler add-on and references in deploy scripts; Karpenter is the scaler of record.
+- Enhanced CloudFront template to output DistributionDomainName.
+- Added Route53 → CloudFront alias template: templates/route53-cloudfront-alias.yaml
+- Added SAM-based scoring workflow wired with Lambda tasks: templates/sam-scoring-workflow.yaml
+- Added minimal Lambda code under services/workflow/* and helper deploy script deploy/deploy-workflow.sh
+[2025-08-28T14:57:38.462141] Added ECS Fargate alternative (no OSS controllers): ecs/* templates, ECS pipeline buildspecs, and DoD note.
+[2025-08-28T15:00:08.066548] GovCloud-safe update:
+- Removed Karpenter files (controller IAM, node IAM, deploy script).
+- Added eks-managed-nodegroups.yaml (three Managed Node Groups: general, compute, memory).
+- Added aws-batch-eks.yaml (Batch ComputeEnv, JobQueue, JobDefinition on EKS).
+- Updated scoring README to reflect Batch submission model.
+[2025-08-28T15:02:29.961843] GovCloud-safe update:
+- Removed Karpenter artifacts. Added EKS Managed Node Groups templates (eks-managed-nodegroups.yaml) and Node Instance Role template.
+- Added AWS Batch on EKS template (batch-eks.yaml): ComputeEnvironment, JobQueue, JobDefinition.
+- Scoring service now submits jobs to AWS Batch (env: JOB_QUEUE, JOB_DEFINITION).
+- Step Functions patched to use Batch submitJob (submitJob.sync) for checks stage.
+- Deploy scripts updated with GovCloud-safe scaling note.
+[2025-08-28T15:10:03.540855] Cleanup & IRSA:
+- Removed EventBridge bus template (templates/eventbridge-bus-rules.yaml).
+- Added IRSA manifest for Batch job SA: ops/k8s/irsa-scoring-batch.yaml (namespace 'batch', SA 'scoring-batch').
+- Renamed 'repo file  stucture.jpg' to 'repo-file-structure.jpg'.

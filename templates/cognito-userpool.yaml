@@ -1,0 +1,70 @@
+# ============================================================
+# Author: TGibson
+# File: templates/cognito-userpool.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cognito User Pool with Hosted UI and OIDC App Client for multi-tenant B2B
+Parameters:
+  UserPoolName:
+    Type: String
+    Default: zt-user-pool
+  DomainPrefix:
+    Type: String
+    Description: 'Cognito Hosted UI domain prefix (globally unique)'
+  CallbackURL:
+    Type: String
+    Default: https://app.example.com/callback
+  LogoutURL:
+    Type: String
+    Default: https://app.example.com/logout
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: false
+        - Name: custom:tenant_id
+          AttributeDataType: String
+          Mutable: true
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      GenerateSecret: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      AllowedOAuthFlowsUserPoolClient: true
+      CallbackURLs: [!Ref CallbackURL]
+      LogoutURLs: [!Ref LogoutURL]
+      SupportedIdentityProviders: [COGNITO]
+    DependsOn: UserPool
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref DomainPrefix
+      UserPoolId: !Ref UserPool
+  TenantAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: TenantAdmin
+      UserPoolId: !Ref UserPool
+  AnalystGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Analyst
+      UserPoolId: !Ref UserPool
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  HostedUIDomain:
+    Value: !Sub 'https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com'

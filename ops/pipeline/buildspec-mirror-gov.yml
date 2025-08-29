@@ -1,0 +1,33 @@
+# ============================================================
+# Author: TGibson
+# File: ops/pipeline/buildspec-mirror-gov.yml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+version: 0.2
+env:
+  variables:
+    GOV_REGION: "us-gov-west-1"
+    GOV_ACCOUNT: "222222222222"
+    GOV_REPO: "myservice"
+phases:
+  install:
+    commands:
+      - yum -y install python3 git jq
+      - pip3 install git-remote-codecommit
+  pre_build:
+    commands:
+      - ROLE_ARN="arn:aws-us-gov:iam::${GOV_ACCOUNT}:role/mirror-receiver"
+      - CREDS=$(aws sts assume-role --role-arn "$ROLE_ARN" --role-session-name mirror --endpoint-url https://sts.${GOV_REGION}.amazonaws.com)
+      - export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r .Credentials.AccessKeyId)
+      - export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .Credentials.SecretAccessKey)
+      - export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)
+      - export AWS_DEFAULT_REGION=${GOV_REGION}
+  build:
+    commands:
+      - git config user.name "MirrorBot"
+      - git config user.email "mirror@internal"
+      - git remote add gov codecommit::${GOV_REGION}://${GOV_REPO} || true
+      - git push --force gov HEAD:main

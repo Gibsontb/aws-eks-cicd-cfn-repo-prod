@@ -1,0 +1,24 @@
+# ============================================================
+# Author: TGibson
+# File: templates/ecr-replication.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR cross-region replication
+Parameters:
+  DestinationRegion:
+    Type: String
+    Default: us-west-2
+Resources:
+  RegistryReplication:
+    Type: AWS::ECR::ReplicationConfiguration
+    Properties:
+      ReplicationConfiguration:
+        Rules:
+          - Destinations:
+              - Region: !Ref DestinationRegion
+            RepositoryFilters:
+              - Filter: "*"
+                FilterType: PREFIX_MATCH

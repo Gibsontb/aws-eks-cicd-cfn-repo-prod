@@ -1,0 +1,48 @@
+# ============================================================
+# Author: TGibson
+# File: ops/pipeline/buildspec-build.yml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 2.1
+# Date: 2025-08-27
+# ============================================================
+
+version: 0.2
+env:
+  variables:
+    APP_NAME: "myservice"
+    AWS_FIPS_ENABLED: "true"
+    AWS_USE_FIPS_ENDPOINT: "true"
+    ECR_REPO: "myservice"
+    COSIGN_KMS_KEY_ARN: ""
+  privileged: true
+phases:
+  install:
+    commands:
+      - yum -y update && yum -y install jq
+      - dockerd-entrypoint.sh >/var/log/dockerd.log 2>&1 & sleep 5
+      - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+      - curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - curl -sSfL https://raw.githubusercontent.com/sigstore/cosign/main/install.sh | sh -s -- -b /usr/local/bin
+  pre_build:
+    commands:
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - REGION=${AWS_DEFAULT_REGION:-$AWS_REGION}
+      - ECR_URI=${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
+      - aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_URI}
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
+      - echo "IMAGE_URI=${ECR_URI}/${ECR_REPO}:${IMAGE_TAG}" | tee image_env.txt
+  build:
+    commands:
+      - docker build -t ${ECR_REPO}:${IMAGE_TAG} ./app
+      - docker tag  ${ECR_REPO}:${IMAGE_TAG} ${ECR_URI}/${ECR_REPO}:${IMAGE_TAG}
+      - syft packages ${ECR_REPO}:${IMAGE_TAG} -o spdx-json > sbom.spdx.json
+      - trivy image --exit-code 1 --severity CRITICAL,HIGH ${ECR_REPO}:${IMAGE_TAG}
+  post_build:
+    commands:
+      - docker push ${ECR_URI}/${ECR_REPO}:${IMAGE_TAG}
+      - DIGEST=$(aws ecr batch-get-image --repository-name ${ECR_REPO} --image-ids imageTag=${IMAGE_TAG} --query 'images[0].imageId.imageDigest' --output text)
+      - cosign sign --key awskms://${COSIGN_KMS_KEY_ARN} --yes ${ECR_URI}/${ECR_REPO}@${DIGEST}
+      - cosign attest --key awskms://${COSIGN_KMS_KEY_ARN} --predicate sbom.spdx.json --type spdxjson ${ECR_URI}/${ECR_REPO}@${DIGEST}
+artifacts:
+  files: [ sbom.spdx.json, image_env.txt ]
+  discard-paths: yes

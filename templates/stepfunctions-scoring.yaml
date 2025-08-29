@@ -1,0 +1,67 @@
+# ============================================================
+# Author: TGibson
+# File: templates/stepfunctions-scoring.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Step Functions state machine for zero-trust scoring workflow (with Lambda tasks)
+Parameters:
+  StateMachineName:
+    Type: String
+    Default: zt-scoring
+  RoleArn:
+    Type: String
+    Description: IAM role for the state machine
+  GatherLambdaArn:
+    Type: String
+  RunChecksLambdaArn:
+    Type: String
+  ComputeLambdaArn:
+    Type: String
+  PersistLambdaArn:
+    Type: String
+  NotifyLambdaArn:
+    Type: String
+Resources:
+  StateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Ref StateMachineName
+      RoleArn: !Ref RoleArn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Zero-Trust Scoring Workflow",
+          "StartAt": "GatherEvidence",
+          "States": {
+            "GatherEvidence": {
+              "Type": "Task",
+              "Resource": "${GatherLambdaArn}",
+              "Next": "RunChecks"
+            },
+            "RunChecks": {
+              "Type": "Task",
+              "Resource": "${RunChecksLambdaArn}",
+              "Next": "ComputeScore"
+            },
+            "ComputeScore": {
+              "Type": "Task",
+              "Resource": "${ComputeLambdaArn}",
+              "Next": "PersistResults"
+            },
+            "PersistResults": {
+              "Type": "Task",
+              "Resource": "${PersistLambdaArn}",
+              "Next": "Notify"
+            },
+            "Notify": {
+              "Type": "Task",
+              "Resource": "${NotifyLambdaArn}",
+              "End": true
+            }
+          }
+        }
+Outputs:
+  StateMachineArn:
+    Value: !Ref StateMachine

@@ -1,0 +1,14 @@
+# ============================================================
+# Author: TGibson
+# File: ops/helm/Chart.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+apiVersion: v2
+name: myservice
+description: Production Helm chart for SaaS workload
+type: application
+version: 0.3.0
+appVersion: "1.0.0"

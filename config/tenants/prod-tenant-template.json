@@ -1,0 +1,38 @@
+# ============================================================
+# Author: TGibson
+# File: config/tenants/prod-tenant-template.json
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+{
+  "tenant": "acme",
+  "namespace": "acme-prod",
+  "quota": {
+    "cpu": "8",
+    "memory": "32Gi",
+    "pods": "200"
+  },
+  "limits": {
+    "default": {
+      "cpu": "500m",
+      "memory": "512Mi"
+    },
+    "defaultRequest": {
+      "cpu": "100m",
+      "memory": "128Mi"
+    }
+  },
+  "network": {
+    "ingress": [
+      "10.0.0.0/8"
+    ],
+    "egress": [
+      "0.0.0.0/0"
+    ]
+  },
+  "labels": {
+    "tenant": "acme",
+    "env": "prod"
+  }
+}

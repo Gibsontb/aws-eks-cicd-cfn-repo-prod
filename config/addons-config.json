@@ -1,0 +1,79 @@
+# ============================================================
+# Author: TGibson
+# File: config/addons-config.json
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+{
+  "Global": {
+    "Project": "aws-eks-saas",
+    "Environment": "prod",
+    "Region": "us-east-1",
+    "Profile": "default",
+    "ClusterName": "saas-eks-prod",
+    "OidcProviderArn": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/oidc.eks.<REGION>.amazonaws.com/id/<OIDC_ID>"
+  },
+  "DNS": {
+    "Enable": true,
+    "HostedZoneId": "Z123456ABCDEFG",
+    "RecordName": "app.example.gov",
+    "AlbDnsName": "internal-abc-123456.us-east-1.elb.amazonaws.com",
+    "AlbHostedZoneId": "Z35SXDOTRQ7X7K",
+    "CreateAAAA": true,
+    "TTL": 300
+  },
+  "WAF": {
+    "Enable": true,
+    "WebAclName": "saas-prod-webacl",
+    "AlbArn": "arn:aws:elasticloadbalancing:us-east-1:<ACCOUNT_ID>:loadbalancer/app/abc/123456",
+    "EnableCommonRuleSet": true,
+    "EnableKnownBadInputs": true,
+    "OptionalIpSetArn": "",
+    "EnableLogging": false,
+    "LogDestinationArn": ""
+  },
+  "CloudWatch": {
+    "Enable": true,
+    "ClusterName": "saas-eks-prod",
+    "LogGroupPrefix": "/aws/eks/saas",
+    "LogRetentionDays": 365,
+    "CreateAlarms": true,
+    "AlarmEmailTopicArn": "",
+    "AlbMetricLoadBalancerFullName": "app/abc/123456",
+    "Alb5xxThreshold": 5,
+    "Alb5xxPeriodSeconds": 60,
+    "Alb5xxEvalPeriods": 5
+  },
+  "AMP_AMG": {
+    "EnableAmp": true,
+    "AmpWorkspaceAlias": "saas-prod",
+    "EnableAmg": true,
+    "GrafanaWorkspaceName": "saas-prod-grafana",
+    "AmgAccountAccessType": "CURRENT_ACCOUNT",
+    "AmgAuthenticationProviders": ["AWS_SSO"],
+    "AmgRoleArn": "",
+    "DataSources": ["PROMETHEUS", "CLOUDWATCH", "XRAY"]
+  },
+  "OTel_XRay": {
+    "Enable": true,
+    "Namespace": "observability",
+    "ServiceAccountName": "otel-collector",
+    "EnableXRay": true,
+    "KmsKeyArnForXRay": ""
+  },
+  "Backup": {
+    "Enable": true,
+    "BackupVaultName": "saas-prod-backup-vault",
+    "BackupPlanName": "saas-prod-backup-plan",
+    "ScheduleExpression": "cron(0 6 * * ? *)",
+    "StartWindowMinutes": 60,
+    "CompletionWindowMinutes": 360,
+    "TransitionToColdAfterDays": 30,
+    "RetentionDays": 365,
+    "CopyToRegion": "",
+    "KmsKeyArn": "",
+    "SelectionTagKey": "Backup",
+    "SelectionTagValue": "Yes"
+  }
+}

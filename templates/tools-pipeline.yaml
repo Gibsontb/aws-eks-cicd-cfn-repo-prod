@@ -1,0 +1,361 @@
+# ============================================================
+# Author: TGibson
+# File: templates/tools-pipeline.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 2.1
+# Date: 2025-08-27
+# ============================================================
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Production CI/CD for EKS (Commercial/GovCloud), VPC-only CodeBuild, hardened S3/KMS/ECR, optional Gov mirror
+
+Parameters:
+  AppName:              { Type: String, Default: myservice }
+  RepoName:             { Type: String, Default: myservice }
+  EcrRepoName:          { Type: String, Default: myservice }
+  Region:               { Type: String, Default: us-east-1 }
+  IsCommercial:         { Type: String, AllowedValues: [true, false], Default: true }
+  GovAccountId:         { Type: String, Default: '123456789012' }
+  GovRegion:            { Type: String, Default: us-gov-west-1 }
+  CosignKmsKeyAlias:    { Type: String, Default: alias/myservice-cosign }
+  DevClusterName:       { Type: String, Default: eks-dev }
+  StgClusterName:       { Type: String, Default: eks-stg }
+  ProdClusterName:      { Type: String, Default: eks-prod }
+  DevNamespace:         { Type: String, Default: app-dev }
+  StgNamespace:         { Type: String, Default: app-stg }
+  ProdNamespace:        { Type: String, Default: app-prod }
+  # VPC-only CodeBuild
+  VpcId:                { Type: AWS::EC2::VPC::Id }
+  PrivateSubnetIds:     { Type: List<AWS::EC2::Subnet::Id> }
+  CodeBuildSecurityGroupId: { Type: AWS::EC2::SecurityGroup::Id }
+  ArtifactRetentionDays:    { Type: Number, Default: 120 }
+
+Conditions:
+  IsComm: !Equals [ !Ref IsCommercial, "true" ]
+
+Resources:
+  ArtifactsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Artifact encryption CMK
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RootAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: 'kms:*'
+            Resource: '*'
+  ArtifactsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AppName}-artifacts
+      TargetKeyId: !Ref ArtifactsKey
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub cicd-artifacts-${AWS::AccountId}-${AWS::Region}-${AppName}
+      VersioningConfiguration: { Status: Enabled }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt ArtifactsKey.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old
+            Status: Enabled
+            ExpirationInDays: !Ref ArtifactRetentionDays
+    DeletionPolicy: Retain
+  ArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: TLSOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub '${ArtifactsBucket.Arn}'
+              - !Sub '${ArtifactsBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+  EcrRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref EcrRepoName
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: { ScanOnPush: true }
+      EncryptionConfiguration: { EncryptionType: KMS }
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"Keep last 100","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":100},"action":{"type":"expire"}}]}
+
+  CodeRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref RepoName
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-pipeline-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [ { Effect: Allow, Principal: { Service: codepipeline.amazonaws.com }, Action: sts:AssumeRole } ]
+      Policies:
+        - PolicyName: pipeline
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ 's3:*', 'kms:Decrypt','kms:Encrypt','kms:GenerateDataKey*' ]
+                Resource: [ !GetAtt ArtifactsBucket.Arn, !Sub '${ArtifactsBucket.Arn}/*', !GetAtt ArtifactsKey.Arn ]
+              - Effect: Allow
+                Action: [ 'codecommit:Get*','codecommit:GitPull','codecommit:UploadArchive','codecommit:CancelUploadArchive' ]
+                Resource: !GetAtt CodeRepo.Arn
+              - Effect: Allow
+                Action: [ 'codebuild:BatchGetBuilds','codebuild:StartBuild' ]
+                Resource:
+                  - !GetAtt BuildProject.Arn
+                  - !GetAtt DeployDevProject.Arn
+                  - !GetAtt DeployStgProject.Arn
+                  - !GetAtt DeployProdProject.Arn
+                  - !If [ IsComm, !GetAtt MirrorGovProject.Arn, !Ref 'AWS::NoValue' ]
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-codebuild-build-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [ { Effect: Allow, Principal: { Service: codebuild.amazonaws.com }, Action: sts:AssumeRole } ]
+      Policies:
+        - PolicyName: build
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ 'logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents' ]
+                Resource: '*'
+              - Effect: Allow
+                Action: [ 'ecr:GetAuthorizationToken','ecr:BatchGetImage','ecr:CompleteLayerUpload','ecr:UploadLayerPart','ecr:InitiateLayerUpload','ecr:PutImage','ecr:DescribeRepositories' ]
+                Resource: '*'
+              - Effect: Allow
+                Action: [ 's3:GetObject','s3:PutObject','s3:ListBucket' ]
+                Resource: [ !GetAtt ArtifactsBucket.Arn, !Sub '${ArtifactsBucket.Arn}/*' ]
+              - Effect: Allow
+                Action: [ 'kms:Decrypt','kms:Encrypt','kms:GenerateDataKey*','kms:Sign','kms:GetPublicKey' ]
+                Resource: [ !GetAtt ArtifactsKey.Arn, !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/* ]
+              - Effect: Allow
+                Action: [ 'sts:GetCallerIdentity' ]
+                Resource: '*'
+
+  CodeBuildDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-codebuild-deploy-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [ { Effect: Allow, Principal: { Service: codebuild.amazonaws.com }, Action: sts:AssumeRole } ]
+      Policies:
+        - PolicyName: deploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ 'logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents' ]
+                Resource: '*'
+              - Effect: Allow
+                Action: [ 's3:GetObject','s3:ListBucket' ]
+                Resource: [ !GetAtt ArtifactsBucket.Arn, !Sub '${ArtifactsBucket.Arn}/*' ]
+              - Effect: Allow
+                Action: [ 'eks:DescribeCluster' ]
+                Resource: '*'
+              - Effect: Allow
+                Action: [ 'ecr:GetAuthorizationToken' ]
+                Resource: '*'
+              - Effect: Allow
+                Action: [ 'sts:GetCallerIdentity' ]
+                Resource: '*'
+              - Effect: Allow
+                Action: [ 'ec2:CreateNetworkInterface','ec2:DescribeNetworkInterfaces','ec2:DeleteNetworkInterface' ]
+                Resource: '*'
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AppName}-build
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - { Name: ECR_REPO, Value: !Ref EcrRepoName }
+          - { Name: AWS_FIPS_ENABLED, Value: "true" }
+          - { Name: AWS_USE_FIPS_ENDPOINT, Value: "true" }
+          - { Name: COSIGN_KMS_KEY_ARN, Value: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/${CosignKmsKeyAlias} }
+      Source: { Type: CODEPIPELINE, BuildSpec: "ops/pipeline/buildspec-build.yml" }
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds
+        SecurityGroupIds: [ !Ref CodeBuildSecurityGroupId ]
+
+  DeployDevProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AppName}-deploy-dev
+      ServiceRole: !GetAtt CodeBuildDeployRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - { Name: CLUSTER_NAME, Value: !Ref DevClusterName }
+          - { Name: NAMESPACE,    Value: !Ref DevNamespace }
+          - { Name: VALUES_FILE,  Value: "ops/helm/values-dev.yaml" }
+      Source: { Type: CODEPIPELINE, BuildSpec: "ops/pipeline/buildspec-deploy.yml" }
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds
+        SecurityGroupIds: [ !Ref CodeBuildSecurityGroupId ]
+
+  DeployStgProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AppName}-deploy-stg
+      ServiceRole: !GetAtt CodeBuildDeployRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - { Name: CLUSTER_NAME, Value: !Ref StgClusterName }
+          - { Name: NAMESPACE,    Value: !Ref StgNamespace }
+          - { Name: VALUES_FILE,  Value: "ops/helm/values-stg.yaml" }
+      Source: { Type: CODEPIPELINE, BuildSpec: "ops/pipeline/buildspec-deploy.yml" }
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds
+        SecurityGroupIds: [ !Ref CodeBuildSecurityGroupId ]
+
+  DeployProdProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AppName}-deploy-prod
+      ServiceRole: !GetAtt CodeBuildDeployRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - { Name: CLUSTER_NAME, Value: !Ref ProdClusterName }
+          - { Name: NAMESPACE,    Value: !Ref ProdNamespace }
+          - { Name: VALUES_FILE,  Value: "ops/helm/values-prod.yaml" }
+      Source: { Type: CODEPIPELINE, BuildSpec: "ops/pipeline/buildspec-deploy.yml" }
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds
+        SecurityGroupIds: [ !Ref CodeBuildSecurityGroupId ]
+
+  MirrorGovProject:
+    Type: AWS::CodeBuild::Project
+    Condition: IsComm
+    Properties:
+      Name: !Sub ${AppName}-mirror-gov
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - { Name: GOV_REGION,  Value: !Ref GovRegion }
+          - { Name: GOV_ACCOUNT, Value: !Ref GovAccountId }
+          - { Name: GOV_REPO,    Value: !Ref RepoName }
+      Source: { Type: CODEPIPELINE, BuildSpec: "ops/pipeline/buildspec-mirror-gov.yml" }
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds
+        SecurityGroupIds: [ !Ref CodeBuildSecurityGroupId ]
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub ${AppName}-eks
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactsBucket
+        EncryptionKey: { Id: !GetAtt ArtifactsKey.Arn, Type: KMS }
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceFromCodeCommit
+              ActionTypeId: { Category: Source, Owner: AWS, Provider: CodeCommit, Version: '1' }
+              OutputArtifacts: [ { Name: SourceOut } ]
+              Configuration: { RepositoryName: !Ref RepoName, BranchName: main, PollForSourceChanges: false }
+        - !If
+          - IsComm
+          - { Name: Mirror_Gov,
+              Actions: [ { Name: Mirror, ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: '1' },
+                           InputArtifacts: [ { Name: SourceOut } ], OutputArtifacts: [ { Name: MirrorOut } ],
+                           Configuration: { ProjectName: !Ref MirrorGovProject } } ] }
+          - { Ref: AWS::NoValue }
+        - Name: Build_Scan_Sign
+          Actions:
+            - Name: Build
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: '1' }
+              InputArtifacts:  [ { Name: SourceOut } ]
+              OutputArtifacts: [ { Name: BuildOut } ]
+              Configuration: { ProjectName: !Ref BuildProject }
+        - Name: Deploy_Dev
+          Actions:
+            - Name: DeployDev
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: '1' }
+              InputArtifacts:  [ { Name: BuildOut } ]
+              Configuration: { ProjectName: !Ref DeployDevProject }
+        - Name: Approve_Stg
+          Actions:
+            - Name: ManualApproval
+              ActionTypeId: { Category: Approval, Owner: AWS, Provider: Manual, Version: '1' }
+        - Name: Deploy_Stg
+          Actions:
+            - Name: DeployStg
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: '1' }
+              InputArtifacts:  [ { Name: BuildOut } ]
+              Configuration: { ProjectName: !Ref DeployStgProject }
+        - Name: Approve_Prod
+          Actions:
+            - Name: ManualApproval
+              ActionTypeId: { Category: Approval, Owner: AWS, Provider: Manual, Version: '1' }
+        - Name: Deploy_Prod
+          Actions:
+            - Name: DeployProd
+              ActionTypeId: { Category: Build, Owner: AWS, Provider: CodeBuild, Version: '1' }
+              InputArtifacts:  [ { Name: BuildOut } ]
+              Configuration: { ProjectName: !Ref DeployProdProject }
+
+Outputs:
+  RepoCloneUrlHttp: { Value: !GetAtt CodeRepo.CloneUrlHttp }
+  ArtifactsBucketName: { Value: !Ref ArtifactsBucket }
+  PipelineName: { Value: !Ref Pipeline }

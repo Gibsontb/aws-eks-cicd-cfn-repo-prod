@@ -1,0 +1,8 @@
+# ============================================================
+# Author: TGibson
+# File: ops/helm/values-dev.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+replicaCount: 2

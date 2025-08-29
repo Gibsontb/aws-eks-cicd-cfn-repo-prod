@@ -1,0 +1,24 @@
+# ============================================================
+# Author: TGibson
+# File: services/scoring/helm/templates/ingress.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scoring
+  annotations:
+    kubernetes.io/ingress.class: alb
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /scoring
+            pathType: Prefix
+            backend:
+              service:
+                name: scoring
+                port:
+                  number: 80

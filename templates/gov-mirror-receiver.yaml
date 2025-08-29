@@ -1,0 +1,38 @@
+# ============================================================
+# Author: TGibson
+# File: templates/gov-mirror-receiver.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GovCloud role to receive mirrored pushes from Commercial pipeline
+
+Parameters:
+  CommercialToolsAccountId: { Type: String }
+  GovRepoName: { Type: String, Default: myservice }
+
+Resources:
+  MirrorReceiverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mirror-receiver
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${CommercialToolsAccountId}:root
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: push-to-gov-codecommit
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ 'codecommit:GitPush', 'codecommit:PutFile', 'codecommit:CreateBranch', 'codecommit:GetRepository' ]
+                Resource: !Sub arn:aws-us-gov:codecommit:${AWS::Region}:${AWS::AccountId}:${GovRepoName}
+
+Outputs:
+  MirrorReceiverRoleArn: { Value: !GetAtt MirrorReceiverRole.Arn }

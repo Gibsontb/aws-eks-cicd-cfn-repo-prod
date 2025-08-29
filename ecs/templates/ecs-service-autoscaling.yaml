@@ -1,0 +1,64 @@
+# ============================================================
+# Author: TGibson
+# File: ecs/templates/ecs-service-autoscaling.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Service Auto Scaling (target tracking on CPU)
+Parameters:
+  ServiceNamespace:
+    Type: String
+    Default: ecs
+  ResourceId:
+    Type: String
+    Description: e.g., service/zt-fargate/zt-api
+  ScalableDimension:
+    Type: String
+    Default: ecs:service:DesiredCount
+  MinCapacity:
+    Type: Number
+    Default: 2
+  MaxCapacity:
+    Type: Number
+    Default: 20
+  TargetCPU:
+    Type: Number
+    Default: 50
+Resources:
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinCapacity
+      MaxCapacity: !Ref MaxCapacity
+      ResourceId: !Ref ResourceId
+      RoleARN: !GetAtt ScalingRole.Arn
+      ScalableDimension: !Ref ScalableDimension
+      ServiceNamespace: !Ref ServiceNamespace
+  ScalingPolicyCPU:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: cpu-target-tracking
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: !Ref TargetCPU
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+  ScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: application-autoscaling.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AutoScalingFullAccess
+Outputs:
+  PolicyName:
+    Value: !Ref ScalingPolicyCPU

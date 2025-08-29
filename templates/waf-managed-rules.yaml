@@ -1,0 +1,57 @@
+# ============================================================
+# Author: TGibson
+# File: templates/waf-managed-rules.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS WAFv2 WebACL with managed rule sets and basic rate limiting
+Parameters:
+  Scope:
+    Type: String
+    AllowedValues: [CLOUDFRONT, REGIONAL]
+    Default: CLOUDFRONT
+  Name:
+    Type: String
+    Default: zt-web-acl
+  RateLimit:
+    Type: Number
+    Default: 2000
+Resources:
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Ref Name
+      Scope: !Ref Scope
+      DefaultAction: { Allow: {} }
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: zt-web-acl
+      Rules:
+        - Name: AWSCommon
+          Priority: 1
+          OverrideAction: { None: {} }
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: common
+        - Name: RateLimit
+          Priority: 2
+          Action: { Block: {} }
+          Statement:
+            RateBasedStatement:
+              AggregateKeyType: IP
+              Limit: !Ref RateLimit
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: rate
+Outputs:
+  WebAclArn:
+    Value: !GetAtt WebACL.Arn

@@ -1,0 +1,17 @@
+# ============================================================
+# Author: TGibson
+# File: ops/addons/external-secrets/values.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+installCRDs: true
+serviceAccount:
+  create: false
+  name: external-secrets
+metrics:
+  serviceMonitor:
+    enabled: false
+webhook:
+  certManager:
+    enabled: false

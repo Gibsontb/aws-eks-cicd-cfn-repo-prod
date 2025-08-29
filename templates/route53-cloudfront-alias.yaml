@@ -1,0 +1,41 @@
+# ============================================================
+# Author: TGibson
+# File: templates/route53-cloudfront-alias.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 A/AAAA alias records pointing to a CloudFront distribution
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: Route53 Hosted Zone ID (public)
+  DomainName:
+    Type: String
+    Description: e.g., app.example.com
+  DistributionDomainName:
+    Type: String
+    Description: e.g., d123456abcdef8.cloudfront.net
+Resources:
+  AAlias:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !Ref DistributionDomainName
+  AAAAAlias:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !Ref DistributionDomainName
+Outputs:
+  RecordName:
+    Value: !Ref DomainName

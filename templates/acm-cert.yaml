@@ -1,0 +1,28 @@
+# ============================================================
+# Author: TGibson
+# File: templates/acm-cert.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Request ACM cert with DNS validation in Route53 (Created 2025-08-28)
+Parameters:
+  DomainName:
+    Type: String
+    Description: Primary domain (e.g., app.example.com)
+  HostedZoneId:
+    Type: String
+    Description: Route53 hosted zone ID for the root domain
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+Outputs:
+  CertificateArn:
+    Value: !Ref Certificate

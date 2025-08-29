@@ -1,0 +1,29 @@
+# ============================================================
+# Author: TGibson
+# File: services/scoring/helm/values.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+replicaCount: 2
+image:
+  repository: <your_account>.dkr.ecr.<region>.amazonaws.com/scoring
+  tag: latest
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 80
+env:
+  EVENT_BUS_NAME: zt-scoring-bus
+  TENANT_CLAIM: custom:tenant_id
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+extraEnv:
+  JOB_QUEUE: ""
+  JOB_DEFINITION: ""

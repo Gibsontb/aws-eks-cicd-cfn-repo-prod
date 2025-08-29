@@ -1,0 +1,132 @@
+# ============================================================
+# Author: TGibson
+# File: ecs/templates/ecs-fargate-core.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS on Fargate core (Cluster, Service, ALB, TargetGroup, Listener)
+Parameters:
+  VpcId:
+    Type: String
+  SubnetIds:
+    Type: List<String>
+  ServiceName:
+    Type: String
+    Default: zt-api
+  ImageUri:
+    Type: String
+    Description: ECR image URI for the API
+  DesiredCount:
+    Type: Number
+    Default: 2
+  ContainerPort:
+    Type: Number
+    Default: 8080
+  Cpu:
+    Type: Number
+    Default: 512
+  Memory:
+    Type: Number
+    Default: 1024
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: zt-fargate
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: app-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                  - s3:GetObject
+                  - s3:PutObject
+                  - secretsmanager:GetSecretValue
+                  - ssm:GetParameter
+                Resource: "*"
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: api
+          Image: !Ref ImageUri
+          PortMappings: [{ ContainerPort: !Ref ContainerPort }]
+          Essential: true
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups: []
+      Subnets: !Ref SubnetIds
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      TargetType: ip
+      VpcId: !Ref VpcId
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      HealthCheckPath: /healthz
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+      TaskDefinition: !Ref TaskDefinition
+      LoadBalancers:
+        - ContainerName: api
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+Outputs:
+  ClusterName:
+    Value: !Ref Cluster
+  ServiceArn:
+    Value: !Ref Service
+  LoadBalancerDNS:
+    Value: !GetAtt ALB.DNSName

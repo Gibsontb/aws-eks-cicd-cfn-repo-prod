@@ -1,0 +1,15 @@
+# ============================================================
+# Author: TGibson
+# File: dashboards/cw-saas-zt-overview.json
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+{
+  "widgets": [
+    { "type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+      "properties": { "metrics": [["AWS/ApplicationELB","TargetResponseTime"]], "stat": "p95", "region": "us-east-1", "title": "API p95"} },
+    { "type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+      "properties": { "metrics": [["AWS/ApplicationELB","HTTPCode_Target_5XX_Count"]], "stat": "Sum", "region": "us-east-1", "title": "5xx Errors"} }
+  ]
+}

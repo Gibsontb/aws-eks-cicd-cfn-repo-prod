@@ -1,0 +1,71 @@
+# ============================================================
+# Author: TGibson
+# File: templates/backup-policies.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Backup vault, plan, and tag-based selection (EBS/EFS/RDS)
+
+Parameters:
+  BackupVaultName: { Type: String }
+  BackupPlanName: { Type: String }
+  ScheduleExpression: { Type: String, Default: "cron(0 6 * * ? *)" }
+  StartWindowMinutes: { Type: Number, Default: 60 }
+  CompletionWindowMinutes: { Type: Number, Default: 360 }
+  TransitionToColdAfterDays: { Type: Number, Default: 30 }
+  RetentionDays: { Type: Number, Default: 365 }
+  CopyToRegion: { Type: String, Default: "" }
+  KmsKeyArn: { Type: String, Default: "" }
+  SelectionTagKey: { Type: String, Default: "Backup" }
+  SelectionTagValue: { Type: String, Default: "Yes" }
+
+Conditions:
+  UseCopy: !Not [!Equals [!Ref CopyToRegion, ""]]
+  UseKms: !Not [!Equals [!Ref KmsKeyArn, ""]]
+
+Resources:
+  Vault:
+    Type: AWS::Backup::BackupVault
+    Properties:
+      BackupVaultName: !Ref BackupVaultName
+      EncryptionKeyArn: !If [UseKms, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
+
+  Plan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: !Ref BackupPlanName
+        Rules:
+          - RuleName: DailyBackup
+            TargetBackupVault: !Ref Vault
+            ScheduleExpression: !Ref ScheduleExpression
+            StartWindowMinutes: !Ref StartWindowMinutes
+            CompletionWindowMinutes: !Ref CompletionWindowMinutes
+            Lifecycle:
+              DeleteAfterDays: !Ref RetentionDays
+              MoveToColdStorageAfterDays: !Ref TransitionToColdAfterDays
+            CopyActions:
+              - !If
+                - UseCopy
+                - DestinationBackupVaultArn: !Sub "arn:${AWS::Partition}:backup:${CopyToRegion}:${AWS::AccountId}:backup-vault:${BackupVaultName}"
+                - !Ref "AWS::NoValue"
+
+  Selection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref Plan
+      BackupSelection:
+        SelectionName: TagSelection
+        IamRoleArn: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/service-role/AWSBackupDefaultServiceRole"
+        ListOfTags:
+          - ConditionType: STRINGEQUALS
+            ConditionKey: !Ref SelectionTagKey
+            ConditionValue: !Ref SelectionTagValue
+
+Outputs:
+  BackupVaultArn:
+    Value: !GetAtt Vault.BackupVaultArn
+  BackupPlanId:
+    Value: !Ref Plan

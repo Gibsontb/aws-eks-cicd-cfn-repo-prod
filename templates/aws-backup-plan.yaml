@@ -1,0 +1,57 @@
+# ============================================================
+# Author: TGibson
+# File: templates/aws-backup-plan.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Backup plan for RDS/EFS using tag-based selection
+Parameters:
+  PlanName:
+    Type: String
+    Default: zt-backup-plan
+  SelectionTagKey:
+    Type: String
+    Default: Backup
+  SelectionTagValue:
+    Type: String
+    Default: true
+Resources:
+  BackupVault:
+    Type: AWS::Backup::BackupVault
+    Properties:
+      BackupVaultName: zt-backup-vault
+  BackupPlan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: !Ref PlanName
+        Rules:
+          - RuleName: Daily7
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: cron(0 5 * * ? *)
+            Lifecycle:
+              DeleteAfterDays: 30
+  BackupSelection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref BackupPlan
+      BackupSelection:
+        IamRoleArn: !GetAtt BackupRole.Arn
+        SelectionName: zt-tag-selection
+        ListOfTags:
+          - ConditionType: STRINGEQUALS
+            ConditionKey: !Ref SelectionTagKey
+            ConditionValue: !Ref SelectionTagValue
+  BackupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: backup.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup

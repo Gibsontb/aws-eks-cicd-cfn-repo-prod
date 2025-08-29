@@ -1,0 +1,23 @@
+# ============================================================
+# Author: TGibson
+# File: ops/policies/app-iam.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+apiVersion: iam.aws.crossplane.io/v1beta1
+kind: Policy
+metadata:
+  name: scoring-service-policy
+spec:
+  forProvider:
+    name: scoring-service-policy
+    document: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],"Resource":["arn:aws:s3:::zt-evidence-bucket/*"]},
+          {"Effect":"Allow","Action":["secretsmanager:GetSecretValue","ssm:GetParameter"],"Resource":"*"},
+          {"Effect":"Allow","Action":["rds-data:ExecuteStatement","rds-data:BatchExecuteStatement"],"Resource":"*"}
+        ]
+      }

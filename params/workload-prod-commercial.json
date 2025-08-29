@@ -1,0 +1,8 @@
+# ============================================================
+# Author: TGibson
+# File: params/workload-prod-commercial.json
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+[{"ParameterKey":"ToolsAccountId","ParameterValue":"111111111111"},{"ParameterKey":"EnvName","ParameterValue":"prod"}]

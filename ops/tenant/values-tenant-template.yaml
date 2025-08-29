@@ -1,0 +1,33 @@
+# ============================================================
+# Author: TGibson
+# File: ops/tenant/values-tenant-template.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+tenant:
+  id: REPLACE_AT_RUNTIME
+  domain: REPLACE_AT_RUNTIME
+
+image:
+  repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/myservice
+  tag: "use-deploy-stage-digest"
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: true
+  className: alb
+  hosts:
+    - host: REPLACE_AT_RUNTIME
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests: { cpu: "100m", memory: "128Mi" }
+  limits:   { cpu: "500m", memory: "512Mi" }
+
+env:
+  - name: TENANT_ID
+    value: REPLACE_AT_RUNTIME

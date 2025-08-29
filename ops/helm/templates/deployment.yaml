@@ -1,0 +1,42 @@
+# ============================================================
+# Author: TGibson
+# File: ops/helm/templates/deployment.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "myservice.fullname" . }}
+  labels: {{- include "myservice.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "myservice.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "myservice.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "myservice.serviceAccountName" . }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: http
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          {{- if .Values.env }}
+          env: {{- toYaml .Values.env | nindent 12 }}
+          {{- end }}

@@ -1,0 +1,57 @@
+# ============================================================
+# Author: TGibson
+# File: templates/aws-batch-eks.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Batch on EKS for scoring workloads
+
+Parameters:
+  ClusterName:
+    Type: String
+  Namespace:
+    Type: String
+    Default: scoring
+
+Resources:
+  EksComputeEnv:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      Type: MANAGED
+      ComputeEnvironmentName: !Sub "${ClusterName}-batch-ce"
+      EksConfiguration:
+        EksClusterArn: !Sub "arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"
+        KubernetesNamespace: !Ref Namespace
+      State: ENABLED
+
+  JobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub "${ClusterName}-batch-queue"
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref EksComputeEnv
+
+  JobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: scoring-jobdef
+      Type: container
+      PlatformCapabilities: [EC2]
+      ContainerProperties:
+        Image: "<account>.dkr.ecr.<region>.amazonaws.com/scoring:latest"
+        Vcpus: 2
+        Memory: 4096
+        Command: ["python","-m","app.main"]
+        Environment:
+          - Name: EVENT_BUS_NAME
+            Value: zt-scoring-bus
+
+Outputs:
+  JobQueue:
+    Value: !Ref JobQueue
+  JobDefinition:
+    Value: !Ref JobDefinition

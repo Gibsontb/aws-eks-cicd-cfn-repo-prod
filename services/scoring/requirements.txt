@@ -1,0 +1,12 @@
+# ============================================================
+# Author: TGibson
+# File: services/scoring/requirements.txt
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+fastapi
+uvicorn[standard]
+psycopg2-binary
+boto3
+pyjwt

@@ -1,0 +1,39 @@
+# ============================================================
+# Author: TGibson
+# File: templates/ses-domain-identity.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SES domain identity with DKIM; creates Route53 records for verification
+Parameters:
+  Domain:
+    Type: String
+  HostedZoneId:
+    Type: String
+Resources:
+  Identity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref Domain
+      DkimSigningAttributes:
+        DomainSigningPrivateKey: null
+        DomainSigningSelector: null
+  DkimRecords:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      RecordSets:
+        - Name: !Sub "selector1._domainkey.${Domain}"
+          Type: CNAME
+          TTL: 1800
+          ResourceRecords: ["selector1-domainkey.example.com"]
+        - Name: !Sub "selector2._domainkey.${Domain}"
+          Type: CNAME
+          TTL: 1800
+          ResourceRecords: ["selector2-domainkey.example.com"]
+        - Name: !Sub "selector3._domainkey.${Domain}"
+          Type: CNAME
+          TTL: 1800
+          ResourceRecords: ["selector3-domainkey.example.com"]

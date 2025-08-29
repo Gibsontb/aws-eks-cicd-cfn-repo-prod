@@ -1,0 +1,59 @@
+# ============================================================
+# Author: TGibson
+# File: templates/dns-route53.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 records for ALB ingress (A/AAAA alias)
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: Route53 Hosted Zone ID for the domain
+  RecordName:
+    Type: String
+    Description: FQDN to create (e.g., app.example.gov)
+  AlbDnsName:
+    Type: String
+    Description: ALB DNS name to alias to (e.g., internal-...elb.amazonaws.com)
+  AlbHostedZoneId:
+    Type: String
+    Description: HostedZoneId of the ALB (from its attributes)
+  TTL:
+    Type: Number
+    Default: 300
+  CreateAAAA:
+    Type: String
+    AllowedValues: ["true","false"]
+    Default: "true"
+
+Resources:
+  ARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref RecordName
+      Type: A
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
+
+  AAAARecord:
+    Condition: CAAAA
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref RecordName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
+
+Conditions:
+  CAAAA: !Equals [ !Ref CreateAAAA, "true" ]
+
+Outputs:
+  RecordFQDN:
+    Value: !Ref RecordName

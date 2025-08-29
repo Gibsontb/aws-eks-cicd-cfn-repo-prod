@@ -1,0 +1,72 @@
+# ============================================================
+# Author: TGibson
+# File: templates/batch-eks.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Batch on EKS - Compute Environment, Job Queue, Job Definition
+Parameters:
+  ClusterName:
+    Type: String
+  ClusterArn:
+    Type: String
+  Namespace:
+    Type: String
+    Default: batch
+  JobImage:
+    Type: String
+    Default: public.ecr.aws/docker/library/python:3.11
+  JobRoleArn:
+    Type: String
+    Description: IAM role for the Job pod service account (IRSA)
+  ExecutionRoleArn:
+    Type: String
+    Description: EKS pod execution role (if required by your setup)
+Resources:
+  BatchComputeEnv:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      Type: MANAGED
+      State: ENABLED
+      ComputeEnvironmentName: !Sub "${ClusterName}-eks-ce"
+      EksConfiguration:
+        EksClusterArn: !Ref ClusterArn
+        KubernetesNamespace: !Ref Namespace
+  BatchJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub "${ClusterName}-job-queue"
+      Priority: 1
+      State: ENABLED
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref BatchComputeEnv
+  BatchJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub "${ClusterName}-scoring"
+      Type: container
+      PlatformCapabilities: ["EKS"]
+      EksProperties:
+        PodProperties:
+          ServiceAccountName: scoring-batch
+          Containers:
+            - Name: scoring
+              Image: !Ref JobImage
+              Command: ["python","-c","print('run checks');"]
+              Resources:
+                Limits:
+                  cpu: "1"
+                  memory: "2048Mi"
+          Metadata:
+            Labels:
+              app: scoring-batch
+Outputs:
+  JobQueueName:
+    Value: !Ref BatchJobQueue
+  JobDefinitionName:
+    Value: !Ref BatchJobDefinition
+  ComputeEnvironmentArn:
+    Value: !Ref BatchComputeEnv

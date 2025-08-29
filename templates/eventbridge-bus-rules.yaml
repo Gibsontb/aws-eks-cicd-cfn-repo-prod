@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EventBridge bus and rules for scoring jobs
+Parameters:
+  BusName:
+    Type: String
+    Default: zt-scoring-bus
+Resources:
+  Bus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Ref BusName
+  RuleScoringRequested:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: !Ref Bus
+      EventPattern:
+        source: ["zt.app"]
+        detail-type: ["ScoringRequested"]
+      Targets: []
+Outputs:
+  BusArn:
+    Value: !GetAtt Bus.Arn

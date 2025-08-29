@@ -1,0 +1,33 @@
+# ============================================================
+# Author: TGibson
+# File: ops/pipeline/buildspec-deploy.yml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.2
+# Date: 2025-08-27
+# ============================================================
+
+version: 0.2
+env:
+  variables:
+    RELEASE_NAME: "myservice"
+    CLUSTER_NAME: "eks-dev"
+    NAMESPACE: "app-dev"
+    VALUES_FILE: "ops/helm/values-dev.yaml"
+phases:
+  install:
+    commands:
+      - yum -y update
+      - curl -sSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  pre_build:
+    commands:
+      - REGION=${AWS_DEFAULT_REGION:-$AWS_REGION}
+      - IMAGE_URI=$(cat image_env.txt | cut -d'=' -f2)
+      - IMAGE_REPO=${IMAGE_URI%:*}
+      - IMAGE_TAG=${IMAGE_URI##*:}
+      - aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${REGION}
+  build:
+    commands:
+      - helm upgrade --install ${RELEASE_NAME} ./ops/helm           --namespace ${NAMESPACE} --create-namespace           --set image.repository=${IMAGE_REPO}           --set image.tag=${IMAGE_TAG}           -f ${VALUES_FILE}           --wait --timeout 15m
+artifacts:
+  files: [ image_env.txt ]
+  discard-paths: yes

@@ -1,0 +1,23 @@
+# ============================================================
+# Author: TGibson
+# File: templates/waf-alb-association.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Associate existing WAFv2 WebACL with an ALB (Created 2025-08-28)
+Parameters:
+  WebAclArn:
+    Type: String
+  LoadBalancerArn:
+    Type: String
+Resources:
+  Assoc:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Ref LoadBalancerArn
+      WebACLArn: !Ref WebAclArn
+Outputs:
+  AssociationId:
+    Value: !Ref Assoc

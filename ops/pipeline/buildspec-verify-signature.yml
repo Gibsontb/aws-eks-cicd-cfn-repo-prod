@@ -1,0 +1,23 @@
+# ============================================================
+# Author: TGibson
+# File: ops/pipeline/buildspec-verify-signature.yml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo "Installing cosign"
+      - curl -sSL -o /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
+      - chmod +x /usr/local/bin/cosign
+  build:
+    commands:
+      - echo "Verifying image signature"
+      - IMAGE_URI=$(cat image_uri.txt)
+      - cosign verify --key cosign.pub "$IMAGE_URI"
+      - echo "Signature verified for $IMAGE_URI"
+artifacts:
+  files:
+    - '**/*'

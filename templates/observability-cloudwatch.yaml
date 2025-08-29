@@ -1,0 +1,75 @@
+# ============================================================
+# Author: TGibson
+# File: templates/observability-cloudwatch.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudWatch log groups + optional ALB 5xx alarm and dashboards
+
+Parameters:
+  ClusterName: { Type: String }
+  LogGroupPrefix: { Type: String, Default: "/aws/eks/saas" }
+  LogRetentionDays: { Type: Number, Default: 365 }
+  CreateAlarms: { Type: String, AllowedValues: ["true","false"], Default: "true" }
+  AlarmEmailTopicArn: { Type: String, Default: "" }
+  AlbMetricLoadBalancerFullName: { Type: String, Default: "" }
+  Alb5xxThreshold: { Type: Number, Default: 5 }
+  Alb5xxPeriodSeconds: { Type: Number, Default: 60 }
+  Alb5xxEvalPeriods: { Type: Number, Default: 5 }
+
+Conditions:
+  CAlarms: !Equals [!Ref CreateAlarms, "true"]
+  CAlarmTopic: !Not [!Equals [!Ref AlarmEmailTopicArn, ""]]
+  CHaveAlbMetric: !Not [!Equals [!Ref AlbMetricLoadBalancerFullName, ""]]
+
+Resources:
+  AppLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${LogGroupPrefix}/${ClusterName}/application"
+      RetentionInDays: !Ref LogRetentionDays
+
+  SystemLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${LogGroupPrefix}/${ClusterName}/system"
+      RetentionInDays: !Ref LogRetentionDays
+
+  PipelineLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${LogGroupPrefix}/pipeline"
+      RetentionInDays: !Ref LogRetentionDays
+
+  Alb5xxAlarm:
+    Condition: CAlarms
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ClusterName}-alb-5xx-high"
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: !Ref Alb5xxEvalPeriods
+      DatapointsToAlarm: !Ref Alb5xxEvalPeriods
+      Threshold: !Ref Alb5xxThreshold
+      TreatMissingData: notBreaching
+      Metrics:
+        - Id: alb5xx
+          MetricStat:
+            Metric:
+              Namespace: AWS/NetworkELB
+              MetricName: HTTPCode_Target_5XX_Count
+              Dimensions:
+                - Name: LoadBalancer
+                  Value: !Ref AlbMetricLoadBalancerFullName
+            Period: !Ref Alb5xxPeriodSeconds
+            Stat: Sum
+          ReturnData: true
+      AlarmActions:
+        - !If [ CAlarmTopic, !Ref AlarmEmailTopicArn, !Ref "AWS::NoValue" ]
+      OKActions:
+        - !If [ CAlarmTopic, !Ref AlarmEmailTopicArn, !Ref "AWS::NoValue" ]
+
+Outputs:
+  AppLogGroup: { Value: !Ref AppLogs }
+  SystemLogGroup: { Value: !Ref SystemLogs }

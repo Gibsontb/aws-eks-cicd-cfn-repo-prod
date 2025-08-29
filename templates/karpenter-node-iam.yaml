@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Instance profile for Karpenter nodes
+Parameters:
+  NodeRoleName:
+    Type: String
+    Default: karpenter-node-role
+Resources:
+  NodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref NodeRoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref NodeRole]
+Outputs:
+  NodeInstanceProfile:
+    Value: !Ref InstanceProfile
+  NodeRoleArn:
+    Value: !GetAtt NodeRole.Arn

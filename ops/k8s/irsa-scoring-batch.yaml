@@ -1,0 +1,19 @@
+# ============================================================
+# Author: TGibson
+# File: ops/k8s/irsa-scoring-batch.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: batch
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scoring-batch
+  namespace: batch
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/zt-scoring-batch-role

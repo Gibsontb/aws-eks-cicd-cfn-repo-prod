@@ -1,0 +1,56 @@
+# ============================================================
+# Author: TGibson
+# File: templates/observability-amp-amg.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Amazon Managed Prometheus (AMP) and Amazon Managed Grafana (AMG)
+
+Parameters:
+  EnableAmp: { Type: String, AllowedValues: ["true","false"], Default: "true" }
+  AmpWorkspaceAlias: { Type: String, Default: "saas" }
+  EnableAmg: { Type: String, AllowedValues: ["true","false"], Default: "false" }
+  GrafanaWorkspaceName: { Type: String, Default: "saas-grafana" }
+  AmgAccountAccessType: { Type: String, AllowedValues: ["CURRENT_ACCOUNT","ORGANIZATION"], Default: "CURRENT_ACCOUNT" }
+  AmgAuthenticationProviders: { Type: String, Default: "AWS_SSO" } # comma-separated
+  AmgRoleArn: { Type: String, Default: "" }
+  DataSources: { Type: String, Default: "PROMETHEUS,CLOUDWATCH,XRAY" } # comma-separated
+
+Conditions:
+  UseAMP: !Equals [!Ref EnableAmp, "true"]
+  UseAMG: !Equals [!Ref EnableAmg, "true"]
+  UseAMGRole: !Not [!Equals [!Ref AmgRoleArn, ""]]
+
+Resources:
+  AmpWorkspace:
+    Condition: UseAMP
+    Type: AWS::APS::Workspace
+    Properties:
+      Alias: !Ref AmpWorkspaceAlias
+
+  GrafanaWorkspace:
+    Condition: UseAMG
+    Type: AWS::Grafana::Workspace
+    Properties:
+      AccountAccessType: !Ref AmgAccountAccessType
+      AuthenticationProviders: !Split [",", !Ref AmgAuthenticationProviders]
+      Name: !Ref GrafanaWorkspaceName
+      PermissionType: SERVICE_MANAGED
+      RoleArn: !If [ UseAMGRole, !Ref AmgRoleArn, !Ref "AWS::NoValue" ]
+      DataSources: !Split [",", !Ref DataSources]
+
+Outputs:
+  AmpWorkspaceArn:
+    Condition: UseAMP
+    Value: !GetAtt AmpWorkspace.Arn
+  AmpWorkspaceUrl:
+    Condition: UseAMP
+    Value: !GetAtt AmpWorkspace.PrometheusEndpoint
+  GrafanaWorkspaceId:
+    Condition: UseAMG
+    Value: !GetAtt GrafanaWorkspace.Id
+  GrafanaWorkspaceUrl:
+    Condition: UseAMG
+    Value: !GetAtt GrafanaWorkspace.Endpoint

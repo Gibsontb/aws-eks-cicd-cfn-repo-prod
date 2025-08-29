@@ -1,0 +1,65 @@
+# ============================================================
+# Author: TGibson
+# File: templates/aurora-postgres-slsv2.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Aurora PostgreSQL Serverless v2 (encrypted) for multi-tenant OLTP
+Parameters:
+  DBName:
+    Type: String
+    Default: ztapp
+  EngineVersion:
+    Type: String
+    Default: '15.4'
+  SubnetIds:
+    Type: List<String>
+    Description: Private DB subnet IDs
+  VpcSecurityGroupIds:
+    Type: List<String>
+    Description: Security group IDs for the cluster
+  MasterUsername:
+    Type: String
+    Default: masteruser
+  MasterPassword:
+    Type: String
+    NoEcho: true
+  KmsKeyId:
+    Type: String
+    Description: KMS key for storage encryption
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Aurora PG Subnet Group'
+      SubnetIds: !Ref SubnetIds
+  Cluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: zt-aurora-pg
+      Engine: aurora-postgresql
+      EngineVersion: !Ref EngineVersion
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds: !Ref VpcSecurityGroupIds
+      StorageEncrypted: true
+      KmsKeyId: !Ref KmsKeyId
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 4
+  WriterInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref Cluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      PubliclyAccessible: false
+Outputs:
+  ClusterArn:
+    Value: !Ref Cluster
+  WriterEndpoint:
+    Value: !GetAtt Cluster.Endpoint.Address

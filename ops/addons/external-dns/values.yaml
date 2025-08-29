@@ -1,0 +1,20 @@
+# ============================================================
+# Author: TGibson
+# File: ops/addons/external-dns/values.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+provider: aws
+policy: upsert-only
+registry: txt
+interval: 1m
+domainFilters: ["${PRIMARY_DOMAIN}"]
+txtOwnerId: "${ENV_NAME}-external-dns"
+serviceAccount:
+  create: false
+  name: external-dns
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false

@@ -1,0 +1,32 @@
+# ============================================================
+# Author: TGibson
+# File: templates/eks-node-instance-role.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM role for EKS managed node groups
+Parameters:
+  RoleName:
+    Type: String
+    Default: eks-node-role
+Resources:
+  NodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+Outputs:
+  NodeRoleArn:
+    Value: !GetAtt NodeRole.Arn

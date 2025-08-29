@@ -1,0 +1,36 @@
+# ============================================================
+# Author: TGibson
+# File: templates/route53-acm.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.1
+# Date: 2025-08-27
+# ============================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 record and ACM certificate (DNS validated)
+Parameters:
+  HostedZoneId:
+    Type: String
+  DomainName:
+    Type: String
+    Description: 'e.g., app.example.com'
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+  Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2  # CloudFront hosted zone ID (static)
+        DNSName: example-distribution.cloudfront.net
+Outputs:
+  CertArn:
+    Value: !Ref Certificate

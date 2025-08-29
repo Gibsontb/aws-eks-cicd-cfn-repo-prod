@@ -1,0 +1,10 @@
+autoDiscovery:
+  clusterName: ${CLUSTER_NAME}
+rbac:
+  serviceAccount:
+    create: false
+    name: cluster-autoscaler
+extraArgs:
+  skip-nodes-with-system-pods: "false"
+  balance-similar-node-groups: "true"
+  expander: least-waste

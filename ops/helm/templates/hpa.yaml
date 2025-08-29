@@ -1,0 +1,22 @@
+# ============================================================
+# Author: TGibson
+# File: ops/helm/templates/hpa.yaml
+# Repo: AWS EKS CI/CD (Commercial + GovCloud) via CloudFormation
+# Version: 1.0
+# Date: 2025-08-27
+# ============================================================
+
+{{- if .Values.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "myservice.fullname" . }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "myservice.fullname" . }}
+  minReplicas: {{ .Values.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  metrics: {{- toYaml .Values.hpa.metrics | nindent 4 }}
+{{- end }}
